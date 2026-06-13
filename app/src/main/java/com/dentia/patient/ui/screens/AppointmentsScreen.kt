@@ -41,6 +41,15 @@ import com.dentia.patient.ui.theme.DentiaWarning
 import java.time.LocalDate
 import java.time.OffsetDateTime
 import java.time.format.DateTimeFormatter
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.rememberDatePickerState
+import java.time.Instant
+import java.time.ZoneOffset
+import androidx.compose.material3.SelectableDates
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 
 @Composable
 fun AppointmentsScreen(
@@ -99,21 +108,15 @@ fun AppointmentsScreen(
             subtitle = "Consulta, cancela o reprograma tus visitas odontológicas.",
         )
 
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            filters.chunked(2).forEach { rowFilters ->
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    rowFilters.forEach { filter ->
-                        FilterChip(
-                            selected = selectedFilter == filter,
-                            onClick = { selectedFilter = filter },
-                            label = { Text(filter) },
-                            modifier = Modifier.weight(1f),
-                        )
-                    }
-                }
+        LazyRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            items(filters) { filter ->
+                FilterChip(
+                    selected = selectedFilter == filter,
+                    onClick = { selectedFilter = filter },
+                    label = { Text(filter) },
+                )
             }
         }
 
@@ -363,6 +366,7 @@ private fun AppointmentCard(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun RescheduleDialog(
     appointment: Appointment,
@@ -371,11 +375,71 @@ private fun RescheduleDialog(
     onLoadAvailability: (String) -> Unit,
     onSubmit: (AvailabilitySlot) -> Unit,
 ) {
-    var date by remember {
-        mutableStateOf(LocalDate.now().plusDays(1).format(DateTimeFormatter.ISO_DATE))
+    var selectedDate by remember {
+        mutableStateOf(LocalDate.now().plusDays(1))
     }
 
+    var loadedDate by remember { mutableStateOf<LocalDate?>(null) }
+    var showCalendar by remember { mutableStateOf(false) }
     var selectedSlot by remember { mutableStateOf<AvailabilitySlot?>(null) }
+
+    val selectedDateText = selectedDate.format(DateTimeFormatter.ISO_DATE)
+    val displayDate = selectedDate.format(
+        DateTimeFormatter.ofPattern("EEEE d 'de' MMMM"),
+    )
+
+    if (showCalendar) {
+        val minSelectableDate = LocalDate.now().plusDays(1)
+
+        val datePickerState = rememberDatePickerState(
+            initialSelectedDateMillis = selectedDate
+                .atStartOfDay()
+                .toInstant(ZoneOffset.UTC)
+                .toEpochMilli(),
+            selectableDates = object : SelectableDates {
+                override fun isSelectableDate(utcTimeMillis: Long): Boolean {
+                    val date = Instant.ofEpochMilli(utcTimeMillis)
+                        .atZone(ZoneOffset.UTC)
+                        .toLocalDate()
+
+                    return !date.isBefore(minSelectableDate)
+                }
+            },
+        )
+
+        DatePickerDialog(
+            onDismissRequest = { showCalendar = false },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val pickedDate = datePickerState.selectedDateMillis
+                            ?.let { millis ->
+                                Instant.ofEpochMilli(millis)
+                                    .atZone(ZoneOffset.UTC)
+                                    .toLocalDate()
+                            }
+
+                        if (pickedDate != null) {
+                            selectedDate = pickedDate
+                            selectedSlot = null
+                            loadedDate = null
+                        }
+
+                        showCalendar = false
+                    },
+                ) {
+                    Text("Seleccionar")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showCalendar = false }) {
+                    Text("Cancelar")
+                }
+            },
+        ) {
+            DatePicker(state = datePickerState)
+        }
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -383,57 +447,142 @@ private fun RescheduleDialog(
         text = {
             Column(
                 modifier = Modifier.verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
                 Text(
                     appointment.reason ?: "Cita odontológica",
                     style = MaterialTheme.typography.titleMedium,
                 )
 
-                OutlinedTextField(
-                    value = date,
-                    onValueChange = {
-                        date = it
-                        selectedSlot = null
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Nueva fecha (AAAA-MM-DD)") },
-                    singleLine = true,
+                Text(
+                    "1. Elige la nueva fecha",
+                    style = MaterialTheme.typography.titleMedium,
                 )
 
+                DentiaCard {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(
+                            displayDate.replaceFirstChar { it.uppercase() },
+                            color = DentiaPrimary,
+                            style = MaterialTheme.typography.titleMedium,
+                        )
+
+                        Text(
+                            "Selecciona el día exacto en el calendario.",
+                            color = DentiaMuted,
+                        )
+
+                        OutlinedButton(
+                            onClick = { showCalendar = true },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text("Elegir fecha en calendario")
+                        }
+                    }
+                }
+
                 OutlinedButton(
-                    onClick = { onLoadAvailability(date) },
+                    onClick = {
+                        selectedSlot = null
+                        loadedDate = selectedDate
+                        onLoadAvailability(selectedDateText)
+                    },
                     modifier = Modifier.fillMaxWidth(),
-                    enabled = date.length == 10 && !state.loadingAvailability,
+                    enabled = selectedDate.isAfter(LocalDate.now()) &&
+                            !state.loadingAvailability,
                 ) {
                     Text(
                         if (state.loadingAvailability) {
-                            "Consultando..."
+                            "Consultando horarios..."
                         } else {
-                            "Ver horarios"
+                            "Ver horarios disponibles"
                         },
                     )
                 }
 
-                state.availability.forEach { slot ->
-                    FilterChip(
-                        selected = selectedSlot == slot,
-                        onClick = { selectedSlot = slot },
-                        label = {
-                            Text(
-                                slot.startAt.format(
-                                    DateTimeFormatter.ofPattern("HH:mm"),
-                                ),
-                            )
-                        },
-                    )
-                }
-
-                if (state.availability.isEmpty() && !state.loadingAvailability) {
+                if (!selectedDate.isAfter(LocalDate.now())) {
                     Text(
-                        "Consulta una fecha para elegir horario.",
-                        color = DentiaMuted,
+                        "Selecciona una fecha posterior a hoy.",
+                        color = MaterialTheme.colorScheme.error,
                     )
+                }
+
+                Text(
+                    "2. Selecciona el nuevo horario",
+                    style = MaterialTheme.typography.titleMedium,
+                )
+
+                when {
+                    state.loadingAvailability -> {
+                        Text(
+                            "Buscando horarios disponibles...",
+                            color = DentiaMuted,
+                        )
+                    }
+
+                    loadedDate != selectedDate -> {
+                        Text(
+                            "Presiona “Ver horarios disponibles” para consultar esta fecha.",
+                            color = DentiaMuted,
+                        )
+                    }
+
+                    state.availability.isEmpty() -> {
+                        Text(
+                            "No hay horarios disponibles para esta fecha.",
+                            color = DentiaMuted,
+                        )
+                    }
+
+                    else -> {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            state.availability.chunked(2).forEach { rowSlots ->
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                ) {
+                                    rowSlots.forEach { slot ->
+                                        val start = slot.startAt.format(
+                                            DateTimeFormatter.ofPattern("HH:mm"),
+                                        )
+                                        val end = slot.endAt.format(
+                                            DateTimeFormatter.ofPattern("HH:mm"),
+                                        )
+
+                                        FilterChip(
+                                            selected = selectedSlot == slot,
+                                            onClick = { selectedSlot = slot },
+                                            label = { Text("$start - $end") },
+                                            modifier = Modifier.weight(1f),
+                                        )
+                                    }
+
+                                    if (rowSlots.size == 1) {
+                                        Row(modifier = Modifier.weight(1f)) {}
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                selectedSlot?.let { slot ->
+                    val start = slot.startAt.format(DateTimeFormatter.ofPattern("HH:mm"))
+                    val end = slot.endAt.format(DateTimeFormatter.ofPattern("HH:mm"))
+
+                    DentiaCard {
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text(
+                                "Nuevo horario",
+                                style = MaterialTheme.typography.titleMedium,
+                            )
+
+                            Text(
+                                "${displayDate.replaceFirstChar { it.uppercase() }} · $start - $end",
+                                color = DentiaPrimary,
+                            )
+                        }
+                    }
                 }
 
                 state.errorMessage?.let {
@@ -443,8 +592,14 @@ private fun RescheduleDialog(
         },
         confirmButton = {
             TextButton(
-                onClick = { selectedSlot?.let(onSubmit) },
-                enabled = selectedSlot != null && !state.submitting,
+                onClick = {
+                    selectedSlot?.let { slot ->
+                        onSubmit(slot)
+                    }
+                },
+                enabled = selectedSlot != null &&
+                        selectedDate.isAfter(LocalDate.now()) &&
+                        !state.submitting,
             ) {
                 Text(
                     if (state.submitting) {

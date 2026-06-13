@@ -48,6 +48,9 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.rememberDatePickerState
 import java.time.Instant
 import java.time.ZoneOffset
+import androidx.compose.material3.SelectableDates
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 
 @Composable
 fun DentistsScreen(
@@ -105,24 +108,30 @@ fun DentistsScreen(
         )
 
         if (specialties.isNotEmpty()) {
-            Text(
-                "Filtrar por especialidad",
-                style = MaterialTheme.typography.titleMedium,
-            )
-
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                FilterChip(
-                    selected = specialtyFilter == null,
-                    onClick = { specialtyFilter = null },
-                    label = { Text("Todas las especialidades") },
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    "Especialidad",
+                    style = MaterialTheme.typography.titleMedium,
                 )
 
-                specialties.forEach { specialty ->
-                    FilterChip(
-                        selected = specialtyFilter == specialty,
-                        onClick = { specialtyFilter = specialty },
-                        label = { Text(specialty) },
-                    )
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    item {
+                        FilterChip(
+                            selected = specialtyFilter == null,
+                            onClick = { specialtyFilter = null },
+                            label = { Text("Todas") },
+                        )
+                    }
+
+                    items(specialties) { specialty ->
+                        FilterChip(
+                            selected = specialtyFilter == specialty,
+                            onClick = { specialtyFilter = specialty },
+                            label = { Text(specialty) },
+                        )
+                    }
                 }
             }
         }
@@ -420,11 +429,13 @@ private fun ScheduleDialog(
         mutableStateOf(LocalDate.now().plusDays(1))
     }
 
+    var loadedDate by remember { mutableStateOf<LocalDate?>(null) }
     var showCalendar by remember { mutableStateOf(false) }
     var selectedSlot by remember { mutableStateOf<AvailabilitySlot?>(null) }
     var reason by remember { mutableStateOf("Consulta odontológica") }
     var notes by remember { mutableStateOf("") }
 
+    val minSelectableDate = LocalDate.now().plusDays(1)
     val selectedDateText = selectedDate.format(DateTimeFormatter.ISO_DATE)
     val displayDate = selectedDate.format(
         DateTimeFormatter.ofPattern("EEEE d 'de' MMMM"),
@@ -436,6 +447,15 @@ private fun ScheduleDialog(
                 .atStartOfDay()
                 .toInstant(ZoneOffset.UTC)
                 .toEpochMilli(),
+            selectableDates = object : SelectableDates {
+                override fun isSelectableDate(utcTimeMillis: Long): Boolean {
+                    val date = Instant.ofEpochMilli(utcTimeMillis)
+                        .atZone(ZoneOffset.UTC)
+                        .toLocalDate()
+
+                    return !date.isBefore(minSelectableDate)
+                }
+            },
         )
 
         DatePickerDialog(
@@ -453,6 +473,7 @@ private fun ScheduleDialog(
                         if (pickedDate != null) {
                             selectedDate = pickedDate
                             selectedSlot = null
+                            loadedDate = null
                         }
 
                         showCalendar = false
@@ -507,10 +528,14 @@ private fun ScheduleDialog(
                 }
 
                 OutlinedButton(
-                    onClick = { onLoadAvailability(selectedDateText) },
+                    onClick = {
+                        selectedSlot = null
+                        loadedDate = selectedDate
+                        onLoadAvailability(selectedDateText)
+                    },
                     modifier = Modifier.fillMaxWidth(),
-                    enabled = !state.loadingAvailability &&
-                            selectedDate.isAfter(LocalDate.now()),
+                    enabled = selectedDate.isAfter(LocalDate.now()) &&
+                            !state.loadingAvailability,
                 ) {
                     Text(
                         if (state.loadingAvailability) {
@@ -518,13 +543,6 @@ private fun ScheduleDialog(
                         } else {
                             "Ver horarios disponibles"
                         },
-                    )
-                }
-
-                if (!selectedDate.isAfter(LocalDate.now())) {
-                    Text(
-                        "Selecciona una fecha posterior a hoy.",
-                        color = MaterialTheme.colorScheme.error,
                     )
                 }
 
@@ -541,9 +559,16 @@ private fun ScheduleDialog(
                         )
                     }
 
+                    loadedDate != selectedDate -> {
+                        Text(
+                            "Presiona “Ver horarios disponibles” para consultar esta fecha.",
+                            color = DentiaMuted,
+                        )
+                    }
+
                     state.availability.isEmpty() -> {
                         Text(
-                            "Consulta la fecha seleccionada para ver horarios disponibles.",
+                            "No hay horarios disponibles para esta fecha.",
                             color = DentiaMuted,
                         )
                     }
@@ -653,6 +678,7 @@ private fun ScheduleDialog(
                 },
                 enabled = selectedSlot != null &&
                         selectedDate.isAfter(LocalDate.now()) &&
+                        loadedDate == selectedDate &&
                         !state.submitting,
             ) {
                 Text(
