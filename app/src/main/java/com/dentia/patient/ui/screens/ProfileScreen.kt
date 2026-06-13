@@ -1,6 +1,5 @@
 package com.dentia.patient.ui.screens
 
-import android.graphics.BitmapFactory
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -10,13 +9,14 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -34,17 +34,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.dentia.patient.data.model.AuthUser
 import com.dentia.patient.ui.components.DentiaCard
+import com.dentia.patient.ui.components.DentiaErrorState
 import com.dentia.patient.ui.components.PrimaryAction
 import com.dentia.patient.ui.components.ScreenHeader
 import com.dentia.patient.ui.theme.DentiaMuted
 import com.dentia.patient.ui.theme.DentiaPrimary
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
+import java.io.InputStream
+import android.graphics.BitmapFactory
 
 @Composable
 fun ProfileScreen(
@@ -59,34 +58,68 @@ fun ProfileScreen(
     onClearMessages: () -> Unit,
     onSave: (String, Uri?, () -> Unit) -> Unit,
 ) {
-    val context = LocalContext.current
-    var fullName by remember(user.fullName) { mutableStateOf(user.displayName) }
-    var selectedPhoto by remember { mutableStateOf<Uri?>(null) }
-    var previewBytes by remember { mutableStateOf<ByteArray?>(profilePhotoBytes) }
-    val picker = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenDocument(),
-    ) { uri ->
-        selectedPhoto = uri
-        onClearMessages()
+    var displayName by remember(user.displayName) {
+        mutableStateOf(user.displayName)
     }
 
-    LaunchedEffect(profilePhotoBytes, selectedPhoto) {
-        previewBytes = if (selectedPhoto != null) {
-            withContext(Dispatchers.IO) {
-                context.contentResolver.openInputStream(selectedPhoto!!)?.use { it.readBytes() }
+    var selectedPhotoUri by remember {
+        mutableStateOf<Uri?>(null)
+    }
+
+    var selectedPhotoBytes by remember {
+        mutableStateOf<ByteArray?>(null)
+    }
+
+    var localError by remember {
+        mutableStateOf<String?>(null)
+    }
+
+    val photoPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.GetContent(),
+    ) { uri ->
+        selectedPhotoUri = uri
+        selectedPhotoBytes = null
+        localError = null
+    }
+
+    val context = androidx.compose.ui.platform.LocalContext.current
+
+    LaunchedEffect(selectedPhotoUri) {
+        val uri = selectedPhotoUri ?: return@LaunchedEffect
+
+        try {
+            val bytes = context.contentResolver.openInputStream(uri)
+                ?.use(InputStream::readBytes)
+
+            if (bytes == null) {
+                localError = "No se pudo leer la imagen seleccionada."
+                selectedPhotoUri = null
+                return@LaunchedEffect
             }
-        } else {
-            profilePhotoBytes
+
+            if (bytes.size > 5 * 1024 * 1024) {
+                localError = "La foto no debe pesar más de 5 MB."
+                selectedPhotoUri = null
+                return@LaunchedEffect
+            }
+
+            selectedPhotoBytes = bytes
+        } catch (_: Exception) {
+            localError = "No se pudo cargar la imagen seleccionada."
+            selectedPhotoUri = null
         }
     }
 
-    val initials = fullName
-        .split(" ")
-        .filter(String::isNotBlank)
-        .take(2)
-        .joinToString("") { it.first().uppercase() }
-        .ifBlank { "P" }
-    val hasChanges = fullName.trim() != user.displayName.trim() || selectedPhoto != null
+    val photoBytes = selectedPhotoBytes ?: profilePhotoBytes
+
+    val bitmap = remember(photoBytes) {
+        photoBytes?.let {
+            BitmapFactory.decodeByteArray(it, 0, it.size)
+        }
+    }
+
+    val hasChanges = displayName.trim() != user.displayName.trim() ||
+            selectedPhotoUri != null
 
     Column(
         modifier = Modifier
@@ -97,128 +130,175 @@ fun ProfileScreen(
             .padding(horizontal = 20.dp, vertical = 24.dp),
         verticalArrangement = Arrangement.spacedBy(18.dp),
     ) {
-        TextButton(onClick = onBack) { Text("< Volver") }
+        TextButton(onClick = onBack) {
+            Text("‹ Volver")
+        }
+
         ScreenHeader(
-            eyebrow = "Mi cuenta",
-            title = "Perfil",
-            subtitle = "Actualiza tu nombre y fotografía de paciente.",
+            eyebrow = "Cuenta del paciente",
+            title = "Mi perfil",
+            subtitle = "Actualiza tu nombre visible y fotografía de perfil.",
         )
 
         DentiaCard {
             Column(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(10.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
-                ProfilePhoto(
-                    bytes = previewBytes,
-                    initials = initials,
-                    loading = isLoadingPhoto && previewBytes == null,
+                Box(
+                    modifier = Modifier
+                        .size(112.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.primaryContainer),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    when {
+                        isLoadingPhoto -> {
+                            CircularProgressIndicator()
+                        }
+
+                        bitmap != null -> {
+                            Image(
+                                bitmap = bitmap.asImageBitmap(),
+                                contentDescription = "Foto de perfil",
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Crop,
+                            )
+                        }
+
+                        else -> {
+                            Text(
+                                user.displayName
+                                    .split(" ")
+                                    .mapNotNull { it.firstOrNull()?.uppercase() }
+                                    .take(2)
+                                    .joinToString(""),
+                                color = DentiaPrimary,
+                                style = MaterialTheme.typography.headlineMedium,
+                            )
+                        }
+                    }
+                }
+
+                Text(
+                    user.email,
+                    color = DentiaMuted,
+                    style = MaterialTheme.typography.bodyMedium,
                 )
-                Text(fullName.ifBlank { user.email }, style = MaterialTheme.typography.titleLarge)
-                Text(user.email, color = DentiaMuted)
-                Text("Paciente", color = DentiaPrimary, fontWeight = FontWeight.Bold)
+
+                OutlinedButton(
+                    onClick = {
+                        localError = null
+                        onClearMessages()
+                        photoPicker.launch("image/*")
+                    },
+                    enabled = !isSubmitting,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text("Cambiar foto")
+                }
+
+                selectedPhotoUri?.let {
+                    Text(
+                        "Nueva foto seleccionada. Guarda cambios para aplicarla.",
+                        color = DentiaPrimary,
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
             }
         }
 
         DentiaCard {
-            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    "Datos personales",
+                    style = MaterialTheme.typography.titleLarge,
+                )
+
                 OutlinedTextField(
-                    value = fullName,
+                    value = displayName,
                     onValueChange = {
-                        fullName = it
+                        displayName = it.take(80)
+                        localError = null
                         onClearMessages()
                     },
                     modifier = Modifier.fillMaxWidth(),
                     label = { Text("Nombre completo") },
                     singleLine = true,
-                    supportingText = { Text("Entre 3 y 120 caracteres.") },
                 )
-                OutlinedTextField(
-                    value = user.email,
-                    onValueChange = {},
+
+                Row(
                     modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Correo electrónico") },
-                    readOnly = true,
-                    supportingText = {
-                        Text("El correo y la contraseña no se editan desde esta pantalla.")
-                    },
-                )
-                OutlinedButton(
-                    onClick = {
-                        picker.launch(arrayOf("image/jpeg", "image/png", "image/webp"))
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    enabled = !isSubmitting,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
-                    Text(if (selectedPhoto == null) "Seleccionar fotografía" else "Cambiar fotografía")
-                }
-                Text(
-                    "JPG, PNG o WEBP. Tamaño máximo: 5 MB.",
-                    color = DentiaMuted,
-                    style = MaterialTheme.typography.bodySmall,
-                )
-                selectedPhoto?.let {
-                    TextButton(
+                    OutlinedButton(
                         onClick = {
-                            selectedPhoto = null
+                            displayName = user.displayName
+                            selectedPhotoUri = null
+                            selectedPhotoBytes = null
+                            localError = null
                             onClearMessages()
                         },
+                        enabled = hasChanges && !isSubmitting,
+                        modifier = Modifier.weight(1f),
                     ) {
-                        Text("Quitar selección")
+                        Text("Descartar")
                     }
+
+                    PrimaryAction(
+                        text = if (isSubmitting) {
+                            "Guardando..."
+                        } else {
+                            "Guardar"
+                        },
+                        onClick = {
+                            val cleanName = displayName.trim()
+
+                            if (cleanName.length < 3) {
+                                localError = "El nombre debe tener al menos 3 caracteres."
+                                return@PrimaryAction
+                            }
+
+                            onSave(cleanName, selectedPhotoUri) {
+                                selectedPhotoUri = null
+                                selectedPhotoBytes = null
+                            }
+                        },
+                        enabled = hasChanges &&
+                                displayName.trim().length >= 3 &&
+                                !isSubmitting,
+                        modifier = Modifier.weight(1f),
+                    )
                 }
-                errorMessage?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-                successMessage?.let { Text(it, color = DentiaPrimary) }
-                PrimaryAction(
-                    text = when {
-                        isSubmitting -> "Guardando..."
-                        hasChanges -> "Guardar perfil"
-                        else -> "Sin cambios"
-                    },
-                    onClick = {
-                        onSave(fullName, selectedPhoto) {
-                            selectedPhoto = null
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    enabled = hasChanges && !isSubmitting && fullName.trim().length in 3..120,
+            }
+        }
+
+        successMessage?.let {
+            DentiaCard {
+                Text(
+                    text = it,
+                    color = DentiaPrimary,
+                    style = MaterialTheme.typography.bodyLarge,
                 )
             }
         }
-    }
-}
 
-@Composable
-private fun ProfilePhoto(
-    bytes: ByteArray?,
-    initials: String,
-    loading: Boolean,
-) {
-    val bitmap = remember(bytes) {
-        bytes?.let { BitmapFactory.decodeByteArray(it, 0, it.size) }
-    }
-    Box(
-        modifier = Modifier
-            .size(112.dp)
-            .clip(CircleShape)
-            .background(MaterialTheme.colorScheme.primaryContainer),
-        contentAlignment = Alignment.Center,
-    ) {
-        when {
-            loading -> CircularProgressIndicator()
-            bitmap != null -> Image(
-                bitmap = bitmap.asImageBitmap(),
-                contentDescription = "Foto de perfil",
-                modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Crop,
-            )
-            else -> Text(
-                initials,
-                color = DentiaPrimary,
-                style = MaterialTheme.typography.headlineLarge,
-                fontWeight = FontWeight.Bold,
-            )
+        localError?.let {
+            DentiaErrorState(message = it)
+        }
+
+        errorMessage?.let {
+            DentiaErrorState(message = it)
+        }
+
+        DentiaCard {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(
+                    "Paciente: solo puedes consultar y modificar información asociada a tu propia cuenta.",
+                    color = DentiaMuted,
+                )
+            }
         }
     }
 }
