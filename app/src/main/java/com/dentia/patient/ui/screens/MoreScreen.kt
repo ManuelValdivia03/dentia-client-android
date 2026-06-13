@@ -23,6 +23,7 @@ fun MoreScreen(
     patientName: String,
     patientEmail: String,
     onHistory: () -> Unit,
+    onClinicalFiles: () -> Unit,
     onDentists: () -> Unit,
     onProfile: () -> Unit,
     onLogout: () -> Unit,
@@ -39,16 +40,22 @@ fun MoreScreen(
         ScreenHeader(
             eyebrow = "Tu cuenta",
             title = "Más",
-            subtitle = "Historial, comunicación y configuración.",
+            subtitle = "Expediente, perfil y configuración.",
         )
+
         DentiaCard {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(patientName, style = MaterialTheme.typography.titleLarge)
+                Text(
+                    patientName,
+                    style = MaterialTheme.typography.titleLarge,
+                )
+
                 Text(
                     patientEmail,
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+
                 Text(
                     "Paciente",
                     style = MaterialTheme.typography.labelLarge,
@@ -56,30 +63,41 @@ fun MoreScreen(
                 )
             }
         }
+
         DentiaCard {
             Column {
                 MenuRow(
-                    "H",
-                    "Historial clínico",
-                    "Citas atendidas y recetas",
+                    symbol = "H",
+                    title = "Historial clínico",
+                    description = "Citas atendidas y recetas",
                     onClick = onHistory,
                 )
+
                 MenuRow(
-                    "DR",
-                    "Dentistas",
-                    "Directorio, perfiles y horarios",
+                    symbol = "A",
+                    title = "Archivos clínicos",
+                    description = "Estudios, imágenes y documentos",
+                    onClick = onClinicalFiles,
+                )
+
+                MenuRow(
+                    symbol = "DR",
+                    title = "Dentistas",
+                    description = "Directorio, perfiles y horarios",
                     onClick = onDentists,
                 )
+
                 MenuRow(
-                    "P",
-                    "Mi perfil",
-                    "Datos personales y fotografía",
+                    symbol = "P",
+                    title = "Mi perfil",
+                    description = "Datos personales y fotografía",
                     onClick = onProfile,
                 )
+
                 MenuRow(
-                    "SALIR",
-                    "Cerrar sesión",
-                    "Salir de Dentia en este dispositivo",
+                    symbol = "SALIR",
+                    title = "Cerrar sesión",
+                    description = "Salir de Dentia en este dispositivo",
                     onClick = onLogout,
                 )
             }

@@ -16,20 +16,20 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import com.dentia.patient.ui.navigation.PatientDestination
 import com.dentia.patient.ui.auth.AuthFlow
 import com.dentia.patient.ui.auth.AuthViewModel
 import com.dentia.patient.ui.auth.SessionLoadingScreen
 import com.dentia.patient.ui.auth.SessionState
+import com.dentia.patient.ui.navigation.PatientDestination
+import com.dentia.patient.ui.patient.PatientViewModel
 import com.dentia.patient.ui.screens.AppointmentsScreen
-import com.dentia.patient.ui.screens.ClinicalFilesScreen
 import com.dentia.patient.ui.screens.ChatScreen
+import com.dentia.patient.ui.screens.ClinicalFilesScreen
 import com.dentia.patient.ui.screens.DentistsScreen
-import com.dentia.patient.ui.screens.HomeScreen
 import com.dentia.patient.ui.screens.HistoryScreen
+import com.dentia.patient.ui.screens.HomeScreen
 import com.dentia.patient.ui.screens.MoreScreen
 import com.dentia.patient.ui.screens.ProfileScreen
-import com.dentia.patient.ui.patient.PatientViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -39,6 +39,7 @@ fun DentiaApp() {
 
     when (val session = state.session) {
         SessionState.Loading -> SessionLoadingScreen()
+
         SessionState.SignedOut -> AuthFlow(
             state = state,
             onShowPage = authViewModel::showPage,
@@ -49,6 +50,7 @@ fun DentiaApp() {
             onForgotPassword = authViewModel::requestPasswordReset,
             onResetPassword = authViewModel::resetPassword,
         )
+
         is SessionState.SignedIn -> PatientApp(
             user = session.user,
             authState = state,
@@ -69,40 +71,47 @@ private fun PatientApp(
     onLogout: () -> Unit,
 ) {
     val historyRoute = "history"
-    val dentistsRoute = "dentists"
+    val dentistsRoute = PatientDestination.Dentists.route
     val profileRoute = "profile"
+
     val patientViewModel: PatientViewModel = viewModel()
     val patientState = patientViewModel.uiState
+
     val navController = rememberNavController()
     val backStackEntry = navController.currentBackStackEntryAsState().value
     val currentRoute = backStackEntry?.destination?.route
+
+    val navigateToTopLevel: (String) -> Unit = { route ->
+        navController.navigate(route) {
+            popUpTo(navController.graph.findStartDestination().id) {
+                saveState = true
+            }
+            launchSingleTop = true
+            restoreState = true
+        }
+    }
 
     Scaffold(
         contentWindowInsets = WindowInsets.safeDrawing,
         bottomBar = {
             NavigationBar {
-                PatientDestination.entries.forEach { destination ->
-                    val selected = currentRoute == destination.route
-                    NavigationBarItem(
-                        selected = selected,
-                        onClick = {
-                            navController.navigate(destination.route) {
-                                popUpTo(navController.graph.findStartDestination().id) {
-                                    saveState = true
-                                }
-                                launchSingleTop = true
-                                restoreState = true
-                            }
-                        },
-                        icon = {
-                            Text(
-                                text = destination.symbol,
-                                fontWeight = FontWeight.Bold,
-                            )
-                        },
-                        label = { Text(destination.label) },
-                    )
-                }
+                PatientDestination.entries
+                    .filter { it.showInBottomBar }
+                    .forEach { destination ->
+                        val selected = currentRoute == destination.route
+
+                        NavigationBarItem(
+                            selected = selected,
+                            onClick = { navigateToTopLevel(destination.route) },
+                            icon = {
+                                Text(
+                                    text = destination.symbol,
+                                    fontWeight = FontWeight.Bold,
+                                )
+                            },
+                            label = { Text(destination.label) },
+                        )
+                    }
             }
         },
     ) { contentPadding ->
@@ -118,9 +127,13 @@ private fun PatientApp(
                     appointments = patientState.appointments,
                     dentists = patientState.dentists,
                     dentistPhotos = patientState.dentistPhotos,
+                    onOpenDentists = {
+                        navigateToTopLevel(PatientDestination.Dentists.route)
+                    },
                 )
             }
-            composable(dentistsRoute) {
+
+            composable(PatientDestination.Dentists.route) {
                 DentistsScreen(
                     contentPadding = contentPadding,
                     state = patientState,
@@ -141,6 +154,7 @@ private fun PatientApp(
                     },
                 )
             }
+
             composable(PatientDestination.Appointments.route) {
                 AppointmentsScreen(
                     contentPadding = contentPadding,
@@ -167,40 +181,7 @@ private fun PatientApp(
                     },
                 )
             }
-            composable(PatientDestination.More.route) {
-                MoreScreen(
-                    contentPadding = contentPadding,
-                    patientName = user.displayName,
-                    patientEmail = user.email,
-                    onHistory = { navController.navigate(historyRoute) },
-                    onDentists = { navController.navigate(dentistsRoute) },
-                    onProfile = {
-                        onClearProfileMessages()
-                        navController.navigate(profileRoute)
-                    },
-                    onLogout = onLogout,
-                )
-            }
-            composable(historyRoute) {
-                HistoryScreen(
-                    contentPadding = contentPadding,
-                    state = patientState,
-                    onBack = { navController.popBackStack() },
-                    onLoadPrescriptions = patientViewModel::loadPrescriptions,
-                    onDownloadPrescription = patientViewModel::downloadPrescription,
-                )
-            }
-            composable(PatientDestination.ClinicalFiles.route) {
-                ClinicalFilesScreen(
-                    contentPadding = contentPadding,
-                    state = patientState,
-                    onBack = { navController.popBackStack() },
-                    onLoad = patientViewModel::loadClinicalFiles,
-                    onUpload = patientViewModel::uploadClinicalFile,
-                    onDownload = patientViewModel::downloadClinicalFile,
-                    onDelete = patientViewModel::deleteClinicalFile,
-                )
-            }
+
             composable(PatientDestination.Chat.route) {
                 ChatScreen(
                     contentPadding = contentPadding,
@@ -216,6 +197,49 @@ private fun PatientApp(
                     onDownloadAttachment = patientViewModel::downloadChatAttachment,
                 )
             }
+
+            composable(PatientDestination.More.route) {
+                MoreScreen(
+                    contentPadding = contentPadding,
+                    patientName = user.displayName,
+                    patientEmail = user.email,
+                    onHistory = { navController.navigate(historyRoute) },
+                    onClinicalFiles = {
+                        navController.navigate(PatientDestination.ClinicalFiles.route)
+                    },
+                    onDentists = {
+                        navigateToTopLevel(dentistsRoute)
+                    },
+                    onProfile = {
+                        onClearProfileMessages()
+                        navController.navigate(profileRoute)
+                    },
+                    onLogout = onLogout,
+                )
+            }
+
+            composable(historyRoute) {
+                HistoryScreen(
+                    contentPadding = contentPadding,
+                    state = patientState,
+                    onBack = { navController.popBackStack() },
+                    onLoadPrescriptions = patientViewModel::loadPrescriptions,
+                    onDownloadPrescription = patientViewModel::downloadPrescription,
+                )
+            }
+
+            composable(PatientDestination.ClinicalFiles.route) {
+                ClinicalFilesScreen(
+                    contentPadding = contentPadding,
+                    state = patientState,
+                    onBack = { navController.popBackStack() },
+                    onLoad = patientViewModel::loadClinicalFiles,
+                    onUpload = patientViewModel::uploadClinicalFile,
+                    onDownload = patientViewModel::downloadClinicalFile,
+                    onDelete = patientViewModel::deleteClinicalFile,
+                )
+            }
+
             composable(profileRoute) {
                 ProfileScreen(
                     contentPadding = contentPadding,

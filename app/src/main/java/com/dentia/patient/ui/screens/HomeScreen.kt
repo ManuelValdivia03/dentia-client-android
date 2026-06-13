@@ -21,6 +21,7 @@ import com.dentia.patient.data.model.Appointment
 import com.dentia.patient.data.model.Dentist
 import com.dentia.patient.ui.components.DentiaCard
 import com.dentia.patient.ui.components.DentistAvatar
+import com.dentia.patient.ui.components.PrimaryAction
 import com.dentia.patient.ui.components.ScreenHeader
 import com.dentia.patient.ui.components.StatusPill
 import com.dentia.patient.ui.theme.DentiaMuted
@@ -37,13 +38,15 @@ fun HomeScreen(
     appointments: List<Appointment>,
     dentists: List<Dentist>,
     dentistPhotos: Map<String, ByteArray>,
+    onOpenDentists: () -> Unit,
 ) {
     val nextAppointment = appointments
         .filter {
             it.startAt.isAfter(OffsetDateTime.now()) &&
-                it.status in setOf("PENDING", "CONFIRMED")
+                    it.status in setOf("PENDING", "CONFIRMED")
         }
         .minByOrNull(Appointment::startAt)
+
     val dentistById = dentists.associateBy(Dentist::domainId)
 
     Column(
@@ -62,43 +65,69 @@ fun HomeScreen(
         ScreenHeader(
             eyebrow = "Portal de pacientes",
             title = "Hola, ${patientName.substringBefore(' ')}",
-            subtitle = "Tu salud dental, clara y siempre a la mano.",
+            subtitle = "Agenda, consulta tus citas y mantén tu expediente a la mano.",
         )
 
         if (nextAppointment == null) {
             DentiaCard {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Sin próximas citas", style = MaterialTheme.typography.titleLarge)
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text(
-                        "Busca un dentista y solicita un horario para comenzar.",
+                        "Sin próximas citas",
+                        style = MaterialTheme.typography.titleLarge,
+                    )
+
+                    Text(
+                        "Busca un dentista disponible y solicita un horario.",
                         color = DentiaMuted,
+                    )
+
+                    PrimaryAction(
+                        text = "Buscar dentista",
+                        onClick = onOpenDentists,
+                        modifier = Modifier.fillMaxWidth(),
                     )
                 }
             }
         } else {
             val dentist = dentistById[nextAppointment.dentistId]
+
             DentiaCard {
                 Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                     ) {
-                        Text("Próxima cita", style = MaterialTheme.typography.titleLarge)
+                        Text(
+                            "Próxima cita",
+                            style = MaterialTheme.typography.titleLarge,
+                        )
+
                         StatusPill(
-                            if (nextAppointment.status == "CONFIRMED") "Confirmada" else "Pendiente",
-                            if (nextAppointment.status == "CONFIRMED") DentiaSuccess else DentiaWarning,
+                            text = if (nextAppointment.status == "CONFIRMED") {
+                                "Confirmada"
+                            } else {
+                                "Pendiente"
+                            },
+                            color = if (nextAppointment.status == "CONFIRMED") {
+                                DentiaSuccess
+                            } else {
+                                DentiaWarning
+                            },
                         )
                     }
+
                     Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                         DentistAvatar(
                             initials = dentist?.initials ?: "D",
                             photoBytes = dentist?.domainId?.let(dentistPhotos::get),
                         )
+
                         Column {
                             Text(
                                 dentist?.fullName ?: "Dentista",
                                 style = MaterialTheme.typography.titleMedium,
                             )
+
                             Text(
                                 dentist?.specialty ?: "Odontología general",
                                 color = DentiaMuted,
@@ -106,6 +135,7 @@ fun HomeScreen(
                             )
                         }
                     }
+
                     Text(
                         nextAppointment.startAt.format(
                             DateTimeFormatter.ofPattern("EEEE d 'de' MMMM · HH:mm"),
@@ -113,6 +143,7 @@ fun HomeScreen(
                         style = MaterialTheme.typography.titleMedium,
                         color = DentiaPrimary,
                     )
+
                     Text(
                         nextAppointment.reason ?: "Cita odontológica",
                         style = MaterialTheme.typography.bodyLarge,
@@ -122,16 +153,27 @@ fun HomeScreen(
         }
 
         DentiaCard {
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text("Tu red de atención", style = MaterialTheme.typography.titleLarge)
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    "Tu red de atención",
+                    style = MaterialTheme.typography.titleLarge,
+                )
+
                 Text(
                     "${dentists.size} dentistas disponibles",
                     color = DentiaPrimary,
                     style = MaterialTheme.typography.titleMedium,
                 )
+
                 Text(
-                    "Consulta perfiles y horarios desde Más > Dentistas.",
+                    "Consulta perfiles, valoraciones y horarios reales desde la pestaña Dentistas.",
                     color = DentiaMuted,
+                )
+
+                PrimaryAction(
+                    text = "Ver dentistas",
+                    onClick = onOpenDentists,
+                    modifier = Modifier.fillMaxWidth(),
                 )
             }
         }
