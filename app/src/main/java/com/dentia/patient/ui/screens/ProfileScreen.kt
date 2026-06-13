@@ -295,7 +295,7 @@ fun ProfileScreen(
         DentiaCard {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(
-                    "Paciente: solo puedes consultar y modificar información asociada a tu propia cuenta.",
+                    "Sólo puedes consultar y modificar información asociada a tu propia cuenta.",
                     color = DentiaMuted,
                 )
             }

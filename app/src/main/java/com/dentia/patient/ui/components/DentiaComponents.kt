@@ -21,19 +21,24 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.annotation.DrawableRes
+import androidx.compose.ui.res.painterResource
 import com.dentia.patient.ui.theme.DentiaBorder
 import com.dentia.patient.ui.theme.DentiaMuted
 import com.dentia.patient.ui.theme.DentiaPrimary
@@ -50,7 +55,12 @@ fun ScreenHeader(
             style = MaterialTheme.typography.labelLarge,
             color = DentiaPrimary,
         )
-        Text(text = title, style = MaterialTheme.typography.headlineLarge)
+
+        Text(
+            text = title,
+            style = MaterialTheme.typography.headlineLarge,
+        )
+
         subtitle?.let {
             Text(
                 text = it,
@@ -84,7 +94,7 @@ fun DentistAvatar(
     modifier: Modifier = Modifier,
     photoBytes: ByteArray? = null,
 ) {
-    val bitmap = androidx.compose.runtime.remember(photoBytes) {
+    val bitmap = remember(photoBytes) {
         photoBytes?.let { BitmapFactory.decodeByteArray(it, 0, it.size) }
     }
 
@@ -113,12 +123,19 @@ fun DentistAvatar(
 }
 
 @Composable
-fun StatusPill(text: String, color: Color) {
+fun StatusPill(
+    text: String,
+    color: Color,
+) {
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(100.dp))
             .background(color.copy(alpha = 0.12f))
-            .border(1.dp, color.copy(alpha = 0.18f), RoundedCornerShape(100.dp))
+            .border(
+                width = 1.dp,
+                color = color.copy(alpha = 0.18f),
+                shape = RoundedCornerShape(100.dp),
+            )
             .padding(horizontal = 12.dp, vertical = 6.dp),
     ) {
         Text(
@@ -148,13 +165,19 @@ fun PrimaryAction(
 }
 
 @Composable
-fun SectionTitle(title: String, action: String? = null) {
+fun SectionTitle(
+    title: String,
+    action: String? = null,
+) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(text = title, style = MaterialTheme.typography.titleLarge)
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleLarge,
+        )
 
         action?.let {
             Text(
@@ -174,6 +197,8 @@ fun MenuRow(
     title: String,
     description: String,
     onClick: () -> Unit = {},
+    icon: ImageVector? = null,
+    @DrawableRes iconResId: Int? = null,
 ) {
     Row(
         modifier = Modifier
@@ -190,19 +215,51 @@ fun MenuRow(
                 .background(MaterialTheme.colorScheme.primaryContainer),
             contentAlignment = Alignment.Center,
         ) {
-            Text(symbol, color = DentiaPrimary, fontWeight = FontWeight.Bold)
+            when {
+                icon != null -> {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = title,
+                        tint = DentiaPrimary,
+                    )
+                }
+
+                iconResId != null -> {
+                    Icon(
+                        painter = painterResource(id = iconResId),
+                        contentDescription = title,
+                        tint = DentiaPrimary,
+                    )
+                }
+
+                else -> {
+                    Text(
+                        text = symbol,
+                        color = DentiaPrimary,
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
+            }
         }
 
         Column(modifier = Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.titleMedium)
             Text(
-                description,
+                text = title,
+                style = MaterialTheme.typography.titleMedium,
+            )
+
+            Text(
+                text = description,
                 style = MaterialTheme.typography.bodyMedium,
                 color = DentiaMuted,
             )
         }
 
-        Text("›", color = DentiaBorder, style = MaterialTheme.typography.headlineSmall)
+        Text(
+            text = "›",
+            color = DentiaBorder,
+            style = MaterialTheme.typography.headlineSmall,
+        )
     }
 }
 
@@ -218,6 +275,7 @@ fun DentiaLoadingState(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             CircularProgressIndicator()
+
             Text(
                 text = message,
                 color = DentiaMuted,
