@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -23,14 +22,15 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.dentia.patient.data.model.Appointment
 import com.dentia.patient.data.model.AvailabilitySlot
-import com.dentia.patient.data.model.Dentist
 import com.dentia.patient.ui.components.DentiaCard
+import com.dentia.patient.ui.components.DentiaEmptyState
+import com.dentia.patient.ui.components.DentiaErrorState
+import com.dentia.patient.ui.components.DentiaLoadingState
 import com.dentia.patient.ui.components.ScreenHeader
 import com.dentia.patient.ui.components.StatusPill
 import com.dentia.patient.ui.patient.PatientUiState
@@ -38,8 +38,8 @@ import com.dentia.patient.ui.theme.DentiaMuted
 import com.dentia.patient.ui.theme.DentiaPrimary
 import com.dentia.patient.ui.theme.DentiaSuccess
 import com.dentia.patient.ui.theme.DentiaWarning
-import java.time.OffsetDateTime
 import java.time.LocalDate
+import java.time.OffsetDateTime
 import java.time.format.DateTimeFormatter
 
 @Composable
@@ -61,15 +61,19 @@ fun AppointmentsScreen(
         "Canceladas",
         "Todas",
     )
+
     var selectedFilter by remember { mutableStateOf(filters.first()) }
     var cancelTarget by remember { mutableStateOf<Appointment?>(null) }
     var rescheduleTarget by remember { mutableStateOf<Appointment?>(null) }
     var ratingTarget by remember { mutableStateOf<Appointment?>(null) }
+
     val now = OffsetDateTime.now()
+
     val filtered = state.appointments.filter { appointment ->
         when (selectedFilter) {
             "Próximas" -> appointment.startAt.isAfter(now) &&
-                appointment.status in setOf("PENDING", "CONFIRMED")
+                    appointment.status in setOf("PENDING", "CONFIRMED")
+
             "Pendientes" -> appointment.status == "PENDING"
             "Confirmadas" -> appointment.status == "CONFIRMED"
             "Completadas" -> appointment.status == "COMPLETED"
@@ -77,6 +81,7 @@ fun AppointmentsScreen(
             else -> true
         }
     }
+
     val dentistNames = state.dentists.associate { it.domainId to it.fullName }
 
     Column(
@@ -91,8 +96,9 @@ fun AppointmentsScreen(
         ScreenHeader(
             eyebrow = "Paciente",
             title = "Mis citas",
-            subtitle = "Consulta y administra tus visitas odontológicas.",
+            subtitle = "Consulta, cancela o reprograma tus visitas odontológicas.",
         )
+
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             filters.chunked(2).forEach { rowFilters ->
                 Row(
@@ -111,30 +117,61 @@ fun AppointmentsScreen(
             }
         }
 
-        state.successMessage?.let { Text(it, color = DentiaSuccess) }
+        state.successMessage?.let {
+            DentiaCard {
+                Text(
+                    text = it,
+                    color = DentiaSuccess,
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+            }
+        }
 
         when {
-            state.loadingAppointments -> CircularProgressIndicator(
-                modifier = Modifier.align(Alignment.CenterHorizontally),
-            )
-            state.errorMessage != null && state.appointments.isEmpty() -> {
-                Text(state.errorMessage, color = MaterialTheme.colorScheme.error)
-                OutlinedButton(onClick = onRetry) { Text("Reintentar") }
-            }
-            filtered.isEmpty() -> Text("No hay citas en esta categoría.", color = DentiaMuted)
-            else -> filtered.forEach { appointment ->
-                AppointmentCard(
-                    appointment = appointment,
-                    dentistName = dentistNames[appointment.dentistId] ?: "Dentista",
-                    onCancel = { cancelTarget = appointment },
-                    onReschedule = {
-                        if (appointment.status == "PENDING") {
-                            onOpenReschedule()
-                            rescheduleTarget = appointment
-                        }
-                    },
-                    onRate = { ratingTarget = appointment },
+            state.loadingAppointments -> {
+                DentiaLoadingState(
+                    message = "Cargando tus citas...",
                 )
+            }
+
+            state.errorMessage != null && state.appointments.isEmpty() -> {
+                DentiaErrorState(
+                    message = state.errorMessage,
+                    onRetry = onRetry,
+                )
+            }
+
+            state.appointments.isEmpty() -> {
+                DentiaEmptyState(
+                    title = "Aún no tienes citas",
+                    message = "Cuando solicites una cita con un dentista, aparecerá aquí.",
+                )
+            }
+
+            filtered.isEmpty() -> {
+                DentiaEmptyState(
+                    title = "No hay citas en esta categoría",
+                    message = "Prueba con otro filtro para ver el resto de tus citas.",
+                    actionText = "Ver todas",
+                    onAction = { selectedFilter = "Todas" },
+                )
+            }
+
+            else -> {
+                filtered.forEach { appointment ->
+                    AppointmentCard(
+                        appointment = appointment,
+                        dentistName = dentistNames[appointment.dentistId] ?: "Dentista",
+                        onCancel = { cancelTarget = appointment },
+                        onReschedule = {
+                            if (appointment.status == "PENDING") {
+                                onOpenReschedule()
+                                rescheduleTarget = appointment
+                            }
+                        },
+                        onRate = { ratingTarget = appointment },
+                    )
+                }
             }
         }
     }
@@ -143,7 +180,11 @@ fun AppointmentsScreen(
         AlertDialog(
             onDismissRequest = { cancelTarget = null },
             title = { Text("Cancelar cita") },
-            text = { Text("¿Deseas cancelar esta cita? Esta acción no se puede revertir.") },
+            text = {
+                Text(
+                    "¿Deseas cancelar esta cita? Esta acción no se puede revertir.",
+                )
+            },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -152,11 +193,16 @@ fun AppointmentsScreen(
                     },
                     enabled = !state.submitting,
                 ) {
-                    Text("Cancelar cita", color = MaterialTheme.colorScheme.error)
+                    Text(
+                        "Cancelar cita",
+                        color = MaterialTheme.colorScheme.error,
+                    )
                 }
             },
             dismissButton = {
-                TextButton(onClick = { cancelTarget = null }) { Text("Volver") }
+                TextButton(onClick = { cancelTarget = null }) {
+                    Text("Volver")
+                }
             },
         )
     }
@@ -205,6 +251,7 @@ private fun AppointmentCard(
         "CANCELLED" -> MaterialTheme.colorScheme.error
         else -> Color.Gray
     }
+
     val statusLabel = when (appointment.status) {
         "CONFIRMED" -> "Confirmada"
         "COMPLETED" -> "Completada"
@@ -212,59 +259,102 @@ private fun AppointmentCard(
         "CANCELLED" -> "Cancelada"
         else -> "Estado no disponible"
     }
+
     val canCancel = appointment.status in setOf("PENDING", "CONFIRMED") &&
-        appointment.startAt.isAfter(OffsetDateTime.now())
+            appointment.startAt.isAfter(OffsetDateTime.now())
+
     val canReschedule = appointment.status == "PENDING" &&
-        appointment.startAt.isAfter(OffsetDateTime.now())
+            appointment.startAt.isAfter(OffsetDateTime.now())
+
     val isConfirmedFuture = appointment.status == "CONFIRMED" &&
-        appointment.startAt.isAfter(OffsetDateTime.now())
+            appointment.startAt.isAfter(OffsetDateTime.now())
+
     val canRate = appointment.status == "COMPLETED" && !appointment.hasRating
 
     DentiaCard {
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
-                Text(
-                    appointment.startAt.format(DateTimeFormatter.ofPattern("dd MMM")),
-                    color = DentiaPrimary,
-                    style = MaterialTheme.typography.titleLarge,
-                )
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(
+                        appointment.startAt.format(
+                            DateTimeFormatter.ofPattern("dd MMM"),
+                        ),
+                        color = DentiaPrimary,
+                        style = MaterialTheme.typography.titleLarge,
+                    )
+
+                    Text(
+                        appointment.startAt.format(
+                            DateTimeFormatter.ofPattern("HH:mm"),
+                        ),
+                        color = DentiaMuted,
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
+
                 StatusPill(statusLabel, statusColor)
             }
+
             Text(
                 appointment.reason ?: "Cita odontológica",
                 style = MaterialTheme.typography.titleMedium,
             )
+
             Text(
-                appointment.startAt.format(DateTimeFormatter.ofPattern("EEEE d 'de' MMMM · HH:mm")),
+                appointment.startAt.format(
+                    DateTimeFormatter.ofPattern("EEEE d 'de' MMMM · HH:mm"),
+                ),
                 color = DentiaMuted,
             )
-            Text(dentistName, style = MaterialTheme.typography.labelLarge)
-            appointment.notes?.let { Text(it, color = DentiaMuted) }
+
+            Text(
+                "Dentista: $dentistName",
+                style = MaterialTheme.typography.labelLarge,
+            )
+
+            appointment.notes
+                ?.takeIf(String::isNotBlank)
+                ?.let {
+                    Text(
+                        it,
+                        color = DentiaMuted,
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
+
             if (isConfirmedFuture) {
-                Text(
-                    "La fecha y la hora ya no se pueden cambiar porque el dentista confirmó este horario. Si no puedes asistir, cancela la cita y solicita una nueva.",
-                    color = DentiaMuted,
-                    style = MaterialTheme.typography.bodyMedium,
-                )
+                DentiaCard {
+                    Text(
+                        "Horario confirmado. Para cambiarlo, cancela y solicita una nueva cita.",
+                        color = DentiaMuted,
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
             }
-            if (canCancel || canRate) {
+
+            if (canCancel || canRate || canReschedule) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     if (canReschedule) {
                         OutlinedButton(onClick = onReschedule) {
                             Text("Reprogramar")
                         }
                     }
+
                     if (canRate) {
                         OutlinedButton(onClick = onRate) {
                             Text("Valorar")
                         }
                     }
+
                     if (canCancel) {
                         TextButton(onClick = onCancel) {
-                            Text("Cancelar", color = MaterialTheme.colorScheme.error)
+                            Text(
+                                "Cancelar",
+                                color = MaterialTheme.colorScheme.error,
+                            )
                         }
                     }
                 }
@@ -284,6 +374,7 @@ private fun RescheduleDialog(
     var date by remember {
         mutableStateOf(LocalDate.now().plusDays(1).format(DateTimeFormatter.ISO_DATE))
     }
+
     var selectedSlot by remember { mutableStateOf<AvailabilitySlot?>(null) }
 
     AlertDialog(
@@ -298,6 +389,7 @@ private fun RescheduleDialog(
                     appointment.reason ?: "Cita odontológica",
                     style = MaterialTheme.typography.titleMedium,
                 )
+
                 OutlinedTextField(
                     value = date,
                     onValueChange = {
@@ -308,28 +400,42 @@ private fun RescheduleDialog(
                     label = { Text("Nueva fecha (AAAA-MM-DD)") },
                     singleLine = true,
                 )
+
                 OutlinedButton(
                     onClick = { onLoadAvailability(date) },
                     modifier = Modifier.fillMaxWidth(),
                     enabled = date.length == 10 && !state.loadingAvailability,
                 ) {
-                    Text(if (state.loadingAvailability) "Consultando..." else "Ver horarios")
+                    Text(
+                        if (state.loadingAvailability) {
+                            "Consultando..."
+                        } else {
+                            "Ver horarios"
+                        },
+                    )
                 }
+
                 state.availability.forEach { slot ->
                     FilterChip(
                         selected = selectedSlot == slot,
                         onClick = { selectedSlot = slot },
                         label = {
-                            Text(slot.startAt.format(DateTimeFormatter.ofPattern("HH:mm")))
+                            Text(
+                                slot.startAt.format(
+                                    DateTimeFormatter.ofPattern("HH:mm"),
+                                ),
+                            )
                         },
                     )
                 }
-                if (
-                    state.availability.isEmpty() &&
-                    !state.loadingAvailability
-                ) {
-                    Text("Consulta una fecha para elegir horario.", color = DentiaMuted)
+
+                if (state.availability.isEmpty() && !state.loadingAvailability) {
+                    Text(
+                        "Consulta una fecha para elegir horario.",
+                        color = DentiaMuted,
+                    )
                 }
+
                 state.errorMessage?.let {
                     Text(it, color = MaterialTheme.colorScheme.error)
                 }
@@ -340,11 +446,19 @@ private fun RescheduleDialog(
                 onClick = { selectedSlot?.let(onSubmit) },
                 enabled = selectedSlot != null && !state.submitting,
             ) {
-                Text(if (state.submitting) "Guardando..." else "Guardar cambio")
+                Text(
+                    if (state.submitting) {
+                        "Guardando..."
+                    } else {
+                        "Guardar cambio"
+                    },
+                )
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cerrar") }
+            TextButton(onClick = onDismiss) {
+                Text("Cerrar")
+            }
         },
     )
 }
@@ -368,6 +482,7 @@ private fun RatingDialog(
                     appointment.reason ?: "Cita odontológica",
                     style = MaterialTheme.typography.titleMedium,
                 )
+
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     (1..5).forEach { value ->
                         FilterChip(
@@ -377,7 +492,9 @@ private fun RatingDialog(
                         )
                     }
                 }
+
                 Text("$score de 5", color = DentiaPrimary)
+
                 OutlinedTextField(
                     value = comment,
                     onValueChange = { comment = it.take(500) },
@@ -385,6 +502,7 @@ private fun RatingDialog(
                     label = { Text("Comentario opcional") },
                     minLines = 3,
                 )
+
                 state.errorMessage?.let {
                     Text(it, color = MaterialTheme.colorScheme.error)
                 }
@@ -395,11 +513,19 @@ private fun RatingDialog(
                 onClick = { onSubmit(score, comment) },
                 enabled = !state.submitting,
             ) {
-                Text(if (state.submitting) "Enviando..." else "Enviar valoración")
+                Text(
+                    if (state.submitting) {
+                        "Enviando..."
+                    } else {
+                        "Enviar valoración"
+                    },
+                )
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancelar") }
+            TextButton(onClick = onDismiss) {
+                Text("Cancelar")
+            }
         },
     )
 }
