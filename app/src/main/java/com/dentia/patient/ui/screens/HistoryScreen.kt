@@ -30,12 +30,15 @@ import androidx.core.content.FileProvider
 import com.dentia.patient.data.model.Appointment
 import com.dentia.patient.data.model.Prescription
 import com.dentia.patient.ui.components.DentiaCard
+import com.dentia.patient.ui.components.DentiaEmptyState
+import com.dentia.patient.ui.components.DentiaErrorState
+import com.dentia.patient.ui.components.DentiaLoadingState
 import com.dentia.patient.ui.components.ScreenHeader
-import com.dentia.patient.ui.patient.PatientUiState
 import com.dentia.patient.ui.theme.DentiaMuted
 import com.dentia.patient.ui.theme.DentiaPrimary
 import java.io.File
 import java.time.format.DateTimeFormatter
+import com.dentia.patient.ui.patient.PatientUiState
 
 @Composable
 fun HistoryScreen(
@@ -47,9 +50,11 @@ fun HistoryScreen(
 ) {
     val context = LocalContext.current
     var openError by remember { mutableStateOf<String?>(null) }
+
     val completedAppointments = state.appointments
         .filter { it.status == "COMPLETED" }
         .sortedByDescending(Appointment::startAt)
+
     val dentistNames = state.dentists.associate { it.domainId to it.fullName }
 
     Column(
@@ -61,56 +66,75 @@ fun HistoryScreen(
             .padding(horizontal = 20.dp, vertical = 24.dp),
         verticalArrangement = Arrangement.spacedBy(18.dp),
     ) {
-        TextButton(onClick = onBack) { Text("‹ Volver") }
+        TextButton(onClick = onBack) {
+            Text("‹ Volver")
+        }
+
         ScreenHeader(
             eyebrow = "Expediente del paciente",
             title = "Historial clínico",
-            subtitle = "Consulta tus citas atendidas y las recetas asociadas.",
+            subtitle = "Consulta tus citas atendidas y las recetas emitidas por tus dentistas.",
         )
 
-        state.errorMessage?.let {
-            Text(it, color = MaterialTheme.colorScheme.error)
-        }
         openError?.let {
-            Text(it, color = MaterialTheme.colorScheme.error)
+            DentiaErrorState(message = it)
         }
 
-        if (state.loadingAppointments) {
-            CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally))
-        } else if (completedAppointments.isEmpty()) {
-            DentiaCard {
-                Text("Todavía no tienes citas completadas.", color = DentiaMuted)
-            }
-        } else {
-            completedAppointments.forEach { appointment ->
-                HistoryAppointmentCard(
-                    appointment = appointment,
-                    dentistName = dentistNames[appointment.dentistId] ?: "Dentista",
-                    prescriptions = state.prescriptionsByAppointment[appointment.id],
-                    isLoading = state.loadingPrescriptionsFor == appointment.id,
-                    isDownloading = state.submitting,
-                    onLoadPrescriptions = { onLoadPrescriptions(appointment.id) },
-                    onDownloadPrescription = { prescription ->
-                        onDownloadPrescription(prescription) { file ->
-                            val uri = FileProvider.getUriForFile(
-                                context,
-                                "${context.packageName}.files",
-                                file,
-                            )
-                            val intent = Intent(Intent.ACTION_VIEW).apply {
-                                setDataAndType(uri, "application/pdf")
-                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                            }
-                            try {
-                                context.startActivity(
-                                    Intent.createChooser(intent, "Abrir receta"),
-                                )
-                            } catch (_: ActivityNotFoundException) {
-                                openError = "No hay una aplicación instalada para abrir archivos PDF."
-                            }
-                        }
-                    },
+        when {
+            state.loadingAppointments -> {
+                DentiaLoadingState(
+                    message = "Cargando historial clínico...",
                 )
+            }
+
+            state.errorMessage != null && state.appointments.isEmpty() -> {
+                DentiaErrorState(
+                    message = state.errorMessage,
+                )
+            }
+
+            completedAppointments.isEmpty() -> {
+                DentiaEmptyState(
+                    title = "Todavía no tienes historial clínico",
+                    message = "Cuando un dentista marque una cita como completada, aparecerá aquí junto con sus recetas.",
+                )
+            }
+
+            else -> {
+                completedAppointments.forEach { appointment ->
+                    HistoryAppointmentCard(
+                        appointment = appointment,
+                        dentistName = dentistNames[appointment.dentistId] ?: "Dentista",
+                        prescriptions = state.prescriptionsByAppointment[appointment.id],
+                        isLoading = state.loadingPrescriptionsFor == appointment.id,
+                        isDownloading = state.submitting,
+                        onLoadPrescriptions = { onLoadPrescriptions(appointment.id) },
+                        onDownloadPrescription = { prescription ->
+                            openError = null
+
+                            onDownloadPrescription(prescription) { file ->
+                                val uri = FileProvider.getUriForFile(
+                                    context,
+                                    "${context.packageName}.files",
+                                    file,
+                                )
+
+                                val intent = Intent(Intent.ACTION_VIEW).apply {
+                                    setDataAndType(uri, "application/pdf")
+                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                }
+
+                                try {
+                                    context.startActivity(
+                                        Intent.createChooser(intent, "Abrir receta"),
+                                    )
+                                } catch (_: ActivityNotFoundException) {
+                                    openError = "No hay una aplicación instalada para abrir archivos PDF."
+                                }
+                            }
+                        },
+                    )
+                }
             }
         }
     }
@@ -132,6 +156,7 @@ private fun HistoryAppointmentCard(
                 appointment.reason ?: "Cita odontológica",
                 style = MaterialTheme.typography.titleLarge,
             )
+
             Text(
                 appointment.startAt.format(
                     DateTimeFormatter.ofPattern("dd MMM yyyy · HH:mm"),
@@ -139,29 +164,60 @@ private fun HistoryAppointmentCard(
                 color = DentiaPrimary,
                 style = MaterialTheme.typography.labelLarge,
             )
-            Text(dentistName, style = MaterialTheme.typography.titleMedium)
+
+            Text(
+                "Dentista: $dentistName",
+                style = MaterialTheme.typography.titleMedium,
+            )
+
+            appointment.notes
+                ?.takeIf(String::isNotBlank)
+                ?.let {
+                    Text(
+                        it,
+                        color = DentiaMuted,
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
 
             when {
-                isLoading -> Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    CircularProgressIndicator()
-                    Text("Cargando recetas...")
+                isLoading -> {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        CircularProgressIndicator()
+                        Text(
+                            "Cargando recetas...",
+                            color = DentiaMuted,
+                        )
+                    }
                 }
-                prescriptions == null -> OutlinedButton(onClick = onLoadPrescriptions) {
-                    Text("Ver recetas")
+
+                prescriptions == null -> {
+                    OutlinedButton(
+                        onClick = onLoadPrescriptions,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text("Ver recetas")
+                    }
                 }
-                prescriptions.isEmpty() -> Text(
-                    "Esta cita no tiene recetas registradas.",
-                    color = DentiaMuted,
-                )
-                else -> prescriptions.forEach { prescription ->
-                    PrescriptionCard(
-                        prescription = prescription,
-                        isDownloading = isDownloading,
-                        onDownload = { onDownloadPrescription(prescription) },
+
+                prescriptions.isEmpty() -> {
+                    DentiaEmptyState(
+                        title = "Sin recetas registradas",
+                        message = "Esta cita fue completada, pero no tiene recetas asociadas.",
                     )
+                }
+
+                else -> {
+                    prescriptions.forEach { prescription ->
+                        PrescriptionCard(
+                            prescription = prescription,
+                            isDownloading = isDownloading,
+                            onDownload = { onDownloadPrescription(prescription) },
+                        )
+                    }
                 }
             }
         }
@@ -182,21 +238,63 @@ private fun PrescriptionCard(
                 MaterialTheme.shapes.large,
             )
             .padding(14.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Text("Diagnóstico", color = DentiaMuted, style = MaterialTheme.typography.labelLarge)
-        Text(prescription.diagnosis)
-        Text("Indicaciones", color = DentiaMuted, style = MaterialTheme.typography.labelLarge)
-        Text(prescription.indications)
-        prescription.notes?.let {
-            Text("Notas", color = DentiaMuted, style = MaterialTheme.typography.labelLarge)
-            Text(it)
-        }
+        Text(
+            "Receta médica",
+            color = DentiaPrimary,
+            style = MaterialTheme.typography.titleMedium,
+        )
+
+        Text(
+            "Diagnóstico",
+            color = DentiaMuted,
+            style = MaterialTheme.typography.labelLarge,
+        )
+
+        Text(
+            prescription.diagnosis,
+            style = MaterialTheme.typography.bodyLarge,
+        )
+
+        Text(
+            "Indicaciones",
+            color = DentiaMuted,
+            style = MaterialTheme.typography.labelLarge,
+        )
+
+        Text(
+            prescription.indications,
+            style = MaterialTheme.typography.bodyLarge,
+        )
+
+        prescription.notes
+            ?.takeIf(String::isNotBlank)
+            ?.let {
+                Text(
+                    "Notas",
+                    color = DentiaMuted,
+                    style = MaterialTheme.typography.labelLarge,
+                )
+
+                Text(
+                    it,
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+            }
+
         OutlinedButton(
             onClick = onDownload,
             enabled = !isDownloading,
+            modifier = Modifier.fillMaxWidth(),
         ) {
-            Text(if (isDownloading) "Descargando..." else "Abrir PDF")
+            Text(
+                if (isDownloading) {
+                    "Descargando..."
+                } else {
+                    "Abrir PDF"
+                },
+            )
         }
     }
 }
