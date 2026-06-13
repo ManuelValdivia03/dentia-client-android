@@ -1,36 +1,44 @@
 package com.dentia.patient.ui
 
+import android.net.Uri
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.dentia.patient.DentiaApplication
+import com.dentia.patient.data.model.AuthUser
 import com.dentia.patient.ui.auth.AuthFlow
+import com.dentia.patient.ui.auth.AuthUiState
 import com.dentia.patient.ui.auth.AuthViewModel
 import com.dentia.patient.ui.auth.SessionLoadingScreen
 import com.dentia.patient.ui.auth.SessionState
 import com.dentia.patient.ui.navigation.PatientDestination
+import com.dentia.patient.ui.patient.ClinicalRecordViewModel
 import com.dentia.patient.ui.patient.PatientViewModel
 import com.dentia.patient.ui.screens.AppointmentsScreen
 import com.dentia.patient.ui.screens.ChatScreen
 import com.dentia.patient.ui.screens.ClinicalFilesScreen
+import com.dentia.patient.ui.screens.ClinicalRecordScreen
 import com.dentia.patient.ui.screens.DentistsScreen
 import com.dentia.patient.ui.screens.HistoryScreen
 import com.dentia.patient.ui.screens.HomeScreen
 import com.dentia.patient.ui.screens.MoreScreen
 import com.dentia.patient.ui.screens.ProfileScreen
-import androidx.compose.material3.Icon
-import androidx.compose.ui.res.painterResource
-import androidx.compose.material3.NavigationBar
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -65,18 +73,23 @@ fun DentiaApp() {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun PatientApp(
-    user: com.dentia.patient.data.model.AuthUser,
-    authState: com.dentia.patient.ui.auth.AuthUiState,
+    user: AuthUser,
+    authState: AuthUiState,
     onClearProfileMessages: () -> Unit,
-    onUpdateProfile: (String, android.net.Uri?, () -> Unit) -> Unit,
+    onUpdateProfile: (String, Uri?, () -> Unit) -> Unit,
     onLogout: () -> Unit,
 ) {
     val historyRoute = "history"
     val dentistsRoute = PatientDestination.Dentists.route
     val profileRoute = "profile"
+    val clinicalRecordRoute = PatientDestination.ClinicalRecord.route
 
     val patientViewModel: PatientViewModel = viewModel()
     val patientState = patientViewModel.uiState
+
+    val application =
+        LocalContext.current.applicationContext as DentiaApplication
+    val clinicalRecordRepository = application.clinicalRecordRepository
 
     val navController = rememberNavController()
     val backStackEntry = navController.currentBackStackEntryAsState().value
@@ -228,6 +241,9 @@ private fun PatientApp(
                     onClinicalFiles = {
                         navController.navigate(PatientDestination.ClinicalFiles.route)
                     },
+                    onClinicalRecord = {
+                        navController.navigate(clinicalRecordRoute)
+                    },
                     onDentists = {
                         navigateToTopLevel(dentistsRoute)
                     },
@@ -258,6 +274,18 @@ private fun PatientApp(
                     onUpload = patientViewModel::uploadClinicalFile,
                     onDownload = patientViewModel::downloadClinicalFile,
                     onDelete = patientViewModel::deleteClinicalFile,
+                )
+            }
+
+            composable(PatientDestination.ClinicalRecord.route) {
+                val clinicalRecordViewModel = remember {
+                    ClinicalRecordViewModel(clinicalRecordRepository)
+                }
+
+                ClinicalRecordScreen(
+                    contentPadding = contentPadding,
+                    viewModel = clinicalRecordViewModel,
+                    onBack = { navController.popBackStack() },
                 )
             }
 

@@ -46,6 +46,13 @@ enum class PatientDestination(
         showInBottomBar = false,
     ),
 
+    ClinicalRecord(
+        route = "clinical-record",
+        label = "Expediente",
+        icon = Icons.Rounded.CalendarMonth,
+        showInBottomBar = false,
+    ),
+
     More(
         route = "more",
         label = "Más",

@@ -9,6 +9,7 @@ import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.SocketTimeoutException
 import java.net.URL
+import com.dentia.patient.data.network.ClinicalRecordApi
 
 data class ApiResponse(
     val statusCode: Int,

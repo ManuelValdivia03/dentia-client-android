@@ -8,20 +8,21 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.Logout
+import androidx.compose.material.icons.rounded.AccountCircle
+import androidx.compose.material.icons.rounded.Assignment
+import androidx.compose.material.icons.rounded.FolderOpen
+import androidx.compose.material.icons.rounded.History
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.dentia.patient.R
 import com.dentia.patient.ui.components.DentiaCard
 import com.dentia.patient.ui.components.MenuRow
 import com.dentia.patient.ui.components.ScreenHeader
-import androidx.compose.material.icons.Icons
-import com.dentia.patient.R
-import androidx.compose.material.icons.automirrored.rounded.Logout
-import androidx.compose.material.icons.rounded.AccountCircle
-import androidx.compose.material.icons.rounded.FolderOpen
-import androidx.compose.material.icons.rounded.History
 
 @Composable
 fun MoreScreen(
@@ -30,6 +31,7 @@ fun MoreScreen(
     patientEmail: String,
     onHistory: () -> Unit,
     onClinicalFiles: () -> Unit,
+    onClinicalRecord: () -> Unit,
     onDentists: () -> Unit,
     onProfile: () -> Unit,
     onLogout: () -> Unit,
@@ -72,6 +74,14 @@ fun MoreScreen(
 
         DentiaCard {
             Column {
+                MenuRow(
+                    symbol = "E",
+                    icon = Icons.Rounded.Assignment,
+                    title = "Expediente clínico",
+                    description = "Antecedentes y consultas registradas",
+                    onClick = onClinicalRecord,
+                )
+
                 MenuRow(
                     symbol = "H",
                     icon = Icons.Rounded.History,
