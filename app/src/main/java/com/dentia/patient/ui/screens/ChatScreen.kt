@@ -378,27 +378,20 @@ private fun ConversationPanel(
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
             .padding(contentPadding)
-            .padding(horizontal = 20.dp, vertical = 24.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
+            .padding(horizontal = 20.dp, vertical = 18.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        TextButton(onClick = onBack) {
-            Text("‹ Conversaciones")
-        }
-
-        ScreenHeader(
-            eyebrow = "Conversación",
-            title = dentistName,
-            subtitle = "Mensajes clínicos con historial.",
-        )
-
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            OutlinedButton(
+            TextButton(onClick = onBack) {
+                Text("‹ Conversaciones")
+            }
+
+            TextButton(
                 onClick = onRefresh,
-                modifier = Modifier.weight(1f),
                 enabled = !state.loadingMessages,
             ) {
                 Text(
@@ -410,6 +403,12 @@ private fun ConversationPanel(
                 )
             }
         }
+
+        ScreenHeader(
+            eyebrow = "Conversación",
+            title = dentistName,
+            subtitle = "Mensajes clínicos con historial.",
+        )
 
         state.errorMessage?.let {
             DentiaErrorState(message = it)
@@ -523,43 +522,18 @@ private fun MessageComposer(
     onSend: () -> Unit,
 ) {
     DentiaCard {
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            OutlinedTextField(
-                value = body,
-                onValueChange = { onBodyChange(it.take(1000)) },
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text("Escribe un mensaje") },
-                minLines = 2,
-                maxLines = 4,
-            )
-
-            Text(
-                "Adjuntos: JPG, PNG, WEBP, PDF, MP4 o WEBM. Máximo 50 MB.",
-                color = DentiaMuted,
-                style = MaterialTheme.typography.bodySmall,
-            )
-
-            OutlinedButton(
-                onClick = onPickFile,
-                modifier = Modifier.fillMaxWidth(),
-                enabled = !sending,
-            ) {
-                Text(
-                    if (attachmentUri == null) {
-                        "Adjuntar archivo"
-                    } else {
-                        "Cambiar adjunto"
-                    },
-                )
-            }
-
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             attachmentUri?.let {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text("Archivo listo", color = DentiaPrimary)
+                    Text(
+                        "Archivo adjunto listo",
+                        color = DentiaPrimary,
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
 
                     TextButton(
                         onClick = onClearAttachment,
@@ -570,12 +544,40 @@ private fun MessageComposer(
                 }
             }
 
-            PrimaryAction(
-                text = if (sending) "Enviando..." else "Enviar",
-                onClick = onSend,
+            Row(
                 modifier = Modifier.fillMaxWidth(),
-                enabled = !sending && (body.isNotBlank() || attachmentUri != null),
-            )
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                OutlinedTextField(
+                    value = body,
+                    onValueChange = { onBodyChange(it.take(1000)) },
+                    modifier = Modifier.weight(1f),
+                    label = { Text("Mensaje") },
+                    minLines = 1,
+                    maxLines = 3,
+                )
+
+                OutlinedButton(
+                    onClick = onPickFile,
+                    enabled = !sending,
+                ) {
+                    Text("+")
+                }
+
+                TextButton(
+                    onClick = onSend,
+                    enabled = !sending && (body.isNotBlank() || attachmentUri != null),
+                ) {
+                    Text(
+                        if (sending) {
+                            "..."
+                        } else {
+                            "Enviar"
+                        },
+                    )
+                }
+            }
         }
     }
 }
