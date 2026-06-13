@@ -21,7 +21,12 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.automirrored.rounded.Send
+import androidx.compose.material.icons.rounded.AttachFile
+import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -52,6 +57,14 @@ import com.dentia.patient.ui.components.DentiaLoadingState
 import com.dentia.patient.ui.components.PrimaryAction
 import com.dentia.patient.ui.components.ScreenHeader
 import com.dentia.patient.ui.patient.PatientUiState
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.Chat
+import androidx.compose.ui.draw.clip
+import androidx.compose.material.icons.rounded.ChevronRight
 import com.dentia.patient.ui.theme.DentiaMuted
 import com.dentia.patient.ui.theme.DentiaPrimary
 import java.io.File
@@ -156,11 +169,27 @@ private fun ConversationInbox(
             .background(MaterialTheme.colorScheme.background)
             .verticalScroll(rememberScrollState())
             .padding(contentPadding)
-            .padding(horizontal = 20.dp, vertical = 24.dp),
-        verticalArrangement = Arrangement.spacedBy(18.dp),
+            .padding(horizontal = 20.dp, vertical = 20.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        TextButton(onClick = onBack) {
-            Text("‹ Volver")
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            TextButton(onClick = onBack) {
+                Text("‹ Volver")
+            }
+
+            IconButton(
+                onClick = onRefresh,
+                enabled = !state.loadingConversations,
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Refresh,
+                    contentDescription = "Actualizar conversaciones",
+                )
+            }
         }
 
         ScreenHeader(
@@ -175,20 +204,6 @@ private fun ConversationInbox(
             modifier = Modifier.fillMaxWidth(),
             enabled = patientId.isNotBlank() && eligibleDentists.isNotEmpty(),
         )
-
-        OutlinedButton(
-            onClick = onRefresh,
-            modifier = Modifier.fillMaxWidth(),
-            enabled = !state.loadingConversations,
-        ) {
-            Text(
-                if (state.loadingConversations) {
-                    "Actualizando..."
-                } else {
-                    "Actualizar conversaciones"
-                },
-            )
-        }
 
         when {
             state.loadingConversations && state.conversations.isEmpty() -> {
@@ -213,19 +228,23 @@ private fun ConversationInbox(
                         "Inicia una conversación con uno de tus dentistas."
                     },
                     actionText = if (eligibleDentists.isEmpty()) null else "Nueva conversación",
-                    onAction = if (eligibleDentists.isEmpty()) null else {
+                    onAction = if (eligibleDentists.isEmpty()) {
+                        null
+                    } else {
                         { showNewConversation = true }
                     },
                 )
             }
 
             else -> {
-                state.conversations.forEach { conversation ->
-                    ConversationCard(
-                        conversation = conversation,
-                        dentistName = dentistNames[conversation.dentistId] ?: "Dentista",
-                        onOpen = { onOpenConversation(conversation.id) },
-                    )
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    state.conversations.forEach { conversation ->
+                        ConversationCard(
+                            conversation = conversation,
+                            dentistName = dentistNames[conversation.dentistId] ?: "Dentista",
+                            onOpen = { onOpenConversation(conversation.id) },
+                        )
+                    }
                 }
             }
         }
@@ -238,32 +257,58 @@ private fun ConversationCard(
     dentistName: String,
     onOpen: () -> Unit,
 ) {
-    DentiaCard {
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(
-                dentistName,
-                style = MaterialTheme.typography.titleMedium,
-            )
-
-            Text(
-                conversation.lastMessagePreview ?: "Sin mensajes",
-                color = DentiaMuted,
-            )
-
-            conversation.lastMessageAt?.let {
-                Text(
-                    it.format(DateTimeFormatter.ofPattern("dd MMM yyyy · HH:mm")),
-                    color = DentiaMuted,
-                    style = MaterialTheme.typography.bodySmall,
+    DentiaCard(
+        modifier = Modifier.clickable(onClick = onOpen),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(46.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(MaterialTheme.colorScheme.primaryContainer),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Rounded.Chat,
+                    contentDescription = "Conversación",
+                    tint = DentiaPrimary,
                 )
             }
 
-            OutlinedButton(
-                onClick = onOpen,
-                modifier = Modifier.fillMaxWidth(),
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
-                Text("Abrir conversación")
+                Text(
+                    dentistName,
+                    style = MaterialTheme.typography.titleMedium,
+                )
+
+                Text(
+                    conversation.lastMessagePreview ?: "Sin mensajes",
+                    color = DentiaMuted,
+                    style = MaterialTheme.typography.bodyMedium,
+                    maxLines = 2,
+                )
+
+                conversation.lastMessageAt?.let {
+                    Text(
+                        it.format(DateTimeFormatter.ofPattern("dd MMM yyyy · HH:mm")),
+                        color = DentiaMuted,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
             }
+
+            Icon(
+                imageVector = Icons.Rounded.ChevronRight,
+                contentDescription = "Abrir conversación",
+                tint = DentiaMuted,
+            )
         }
     }
 }
@@ -390,16 +435,13 @@ private fun ConversationPanel(
                 Text("‹ Conversaciones")
             }
 
-            TextButton(
+            IconButton(
                 onClick = onRefresh,
                 enabled = !state.loadingMessages,
             ) {
-                Text(
-                    if (state.loadingMessages) {
-                        "Actualizando..."
-                    } else {
-                        "Actualizar"
-                    },
+                Icon(
+                    imageVector = Icons.Rounded.Refresh,
+                    contentDescription = "Actualizar mensajes",
                 )
             }
         }
@@ -407,7 +449,6 @@ private fun ConversationPanel(
         ScreenHeader(
             eyebrow = "Conversación",
             title = dentistName,
-            subtitle = "Mensajes clínicos con historial.",
         )
 
         state.errorMessage?.let {
@@ -546,7 +587,7 @@ private fun MessageComposer(
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 OutlinedTextField(
@@ -558,23 +599,23 @@ private fun MessageComposer(
                     maxLines = 3,
                 )
 
-                OutlinedButton(
+                IconButton(
                     onClick = onPickFile,
                     enabled = !sending,
                 ) {
-                    Text("+")
+                    Icon(
+                        imageVector = Icons.Rounded.AttachFile,
+                        contentDescription = "Adjuntar archivo",
+                    )
                 }
 
-                TextButton(
+                IconButton(
                     onClick = onSend,
                     enabled = !sending && (body.isNotBlank() || attachmentUri != null),
                 ) {
-                    Text(
-                        if (sending) {
-                            "..."
-                        } else {
-                            "Enviar"
-                        },
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Rounded.Send,
+                        contentDescription = "Enviar mensaje",
                     )
                 }
             }

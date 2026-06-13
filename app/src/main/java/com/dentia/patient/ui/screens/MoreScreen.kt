@@ -16,6 +16,12 @@ import androidx.compose.ui.unit.dp
 import com.dentia.patient.ui.components.DentiaCard
 import com.dentia.patient.ui.components.MenuRow
 import com.dentia.patient.ui.components.ScreenHeader
+import androidx.compose.material.icons.Icons
+import com.dentia.patient.R
+import androidx.compose.material.icons.automirrored.rounded.Logout
+import androidx.compose.material.icons.rounded.AccountCircle
+import androidx.compose.material.icons.rounded.FolderOpen
+import androidx.compose.material.icons.rounded.History
 
 @Composable
 fun MoreScreen(
@@ -68,6 +74,7 @@ fun MoreScreen(
             Column {
                 MenuRow(
                     symbol = "H",
+                    icon = Icons.Rounded.History,
                     title = "Historial clínico",
                     description = "Citas atendidas y recetas",
                     onClick = onHistory,
@@ -75,6 +82,7 @@ fun MoreScreen(
 
                 MenuRow(
                     symbol = "A",
+                    icon = Icons.Rounded.FolderOpen,
                     title = "Archivos clínicos",
                     description = "Estudios, imágenes y documentos",
                     onClick = onClinicalFiles,
@@ -82,6 +90,7 @@ fun MoreScreen(
 
                 MenuRow(
                     symbol = "DR",
+                    iconResId = R.drawable.dentistry,
                     title = "Dentistas",
                     description = "Directorio, perfiles y horarios",
                     onClick = onDentists,
@@ -89,6 +98,7 @@ fun MoreScreen(
 
                 MenuRow(
                     symbol = "P",
+                    icon = Icons.Rounded.AccountCircle,
                     title = "Mi perfil",
                     description = "Datos personales y fotografía",
                     onClick = onProfile,
@@ -96,6 +106,7 @@ fun MoreScreen(
 
                 MenuRow(
                     symbol = "SALIR",
+                    icon = Icons.AutoMirrored.Rounded.Logout,
                     title = "Cerrar sesión",
                     description = "Salir de Dentia en este dispositivo",
                     onClick = onLogout,
