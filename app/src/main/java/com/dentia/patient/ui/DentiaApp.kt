@@ -130,6 +130,15 @@ private fun PatientApp(
                     onOpenDentists = {
                         navigateToTopLevel(PatientDestination.Dentists.route)
                     },
+                    onOpenAppointments = {
+                        navigateToTopLevel(PatientDestination.Appointments.route)
+                    },
+                    onOpenHistory = {
+                        navController.navigate(historyRoute)
+                    },
+                    onOpenClinicalFiles = {
+                        navController.navigate(PatientDestination.ClinicalFiles.route)
+                    },
                 )
             }
 

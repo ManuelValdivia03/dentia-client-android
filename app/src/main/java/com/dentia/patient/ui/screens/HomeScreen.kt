@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -39,13 +40,22 @@ fun HomeScreen(
     dentists: List<Dentist>,
     dentistPhotos: Map<String, ByteArray>,
     onOpenDentists: () -> Unit,
+    onOpenAppointments: () -> Unit,
+    onOpenHistory: () -> Unit,
+    onOpenClinicalFiles: () -> Unit,
 ) {
+    val now = OffsetDateTime.now()
+
     val nextAppointment = appointments
         .filter {
-            it.startAt.isAfter(OffsetDateTime.now()) &&
+            it.startAt.isAfter(now) &&
                     it.status in setOf("PENDING", "CONFIRMED")
         }
         .minByOrNull(Appointment::startAt)
+
+    val completedAppointmentsCount = appointments.count { it.status == "COMPLETED" }
+    val pendingAppointmentsCount = appointments.count { it.status == "PENDING" }
+    val confirmedAppointmentsCount = appointments.count { it.status == "CONFIRMED" }
 
     val dentistById = dentists.associateBy(Dentist::domainId)
 
@@ -60,7 +70,7 @@ fun HomeScreen(
             .verticalScroll(rememberScrollState())
             .padding(contentPadding)
             .padding(horizontal = 20.dp, vertical = 24.dp),
-        verticalArrangement = Arrangement.spacedBy(24.dp),
+        verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
         ScreenHeader(
             eyebrow = "Portal de pacientes",
@@ -148,7 +158,43 @@ fun HomeScreen(
                         nextAppointment.reason ?: "Cita odontológica",
                         style = MaterialTheme.typography.bodyLarge,
                     )
+
+                    OutlinedButton(
+                        onClick = onOpenAppointments,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text("Ver mis citas")
+                    }
                 }
+            }
+        }
+
+        DentiaCard {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    "Resumen de atención",
+                    style = MaterialTheme.typography.titleLarge,
+                )
+
+                SummaryRow(
+                    label = "Pendientes",
+                    value = pendingAppointmentsCount.toString(),
+                )
+
+                SummaryRow(
+                    label = "Confirmadas",
+                    value = confirmedAppointmentsCount.toString(),
+                )
+
+                SummaryRow(
+                    label = "Citas completadas",
+                    value = completedAppointmentsCount.toString(),
+                )
+
+                SummaryRow(
+                    label = "Dentistas disponibles",
+                    value = dentists.size.toString(),
+                )
             }
         }
 
@@ -177,5 +223,28 @@ fun HomeScreen(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun SummaryRow(
+    label: String,
+    value: String,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Text(
+            label,
+            color = DentiaMuted,
+            style = MaterialTheme.typography.bodyLarge,
+        )
+
+        Text(
+            value,
+            color = DentiaPrimary,
+            style = MaterialTheme.typography.titleMedium,
+        )
     }
 }
