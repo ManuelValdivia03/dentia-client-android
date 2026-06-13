@@ -12,7 +12,10 @@ import java.util.Locale
 
 class MainActivity : ComponentActivity() {
     override fun attachBaseContext(newBase: Context) {
-        val spanishMexico = Locale("es", "MX")
+        val spanishMexico = Locale.Builder()
+            .setLanguage("es")
+            .setRegion("MX")
+            .build()
         Locale.setDefault(spanishMexico)
         val configuration = newBase.resources.configuration.apply {
             setLocale(spanishMexico)
